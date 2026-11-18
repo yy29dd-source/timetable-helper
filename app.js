@@ -901,6 +901,8 @@ screens.result = {
       ${blockedBox(r.blocked, true)}
       <div class="tabs" role="tablist" aria-label="추천 시간표">${tabs}</div>
       <div id="plan-panel" role="tabpanel" aria-labelledby="tab-${ui.planIndex}">
+        ${p.underTarget ? `<p class="under-note">조건에 맞는 과목이 부족해 목표(${r.min === r.target ? r.target : r.min + "~" + r.target}학점)를 다 채우지 못했어요. 이 안은 ${fmt(p.credits)}학점이에요.</p>` : ""}
+        <p class="small muted" style="margin:0 0 8px">전공 ${fmt(p.majorCredits)}학점 · 교양 ${fmt(p.credits - p.majorCredits)}학점</p>
         ${weekGrid(p.sections)}
         <div class="legend tiny"><span class="lg major"></span>전공 <span class="lg special"></span>대학특화 <span class="lg general"></span>교양</div>
         <div class="list" style="margin-top:12px">${list}</div>

@@ -291,6 +291,11 @@ label.row { cursor: pointer; }
 }
 .tab[aria-selected="true"] { border: 2px solid var(--main); background: var(--main-soft); color: var(--main); font-weight: 700; }
 
+.under-note {
+  margin: 0 0 8px; padding: 10px 12px; border-radius: 12px;
+  background: #FFF6E5; border: 1px solid #F0C987; color: #7A4B00; font-size: 14px;
+}
+
 /* 주간 시간표 격자 */
 .tt { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
 .tt-head, .tt-body { display: grid; grid-template-columns: 26px repeat(var(--cols), minmax(0, 1fr)); }

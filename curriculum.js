@@ -1,6 +1,7 @@
 // 입학년도별 지능미디어공학과 전공 교육과정
 // 원본: source/지능미디어공학과 입학년도별 교육과정/ 2022~2026 PDF (손으로 옮김)
-// grade: 학년, term: 학기 (0 = 4학년 전체), area: 앱 영역, required: 필수 여부
+// grade: 학년, term: 학기 (0 = 4학년 전체)
+// 캡스톤디자인 I = 4학년 1학기, 캡스톤디자인 II = 4학년 2학기 (사용자 확인: PDF 2024~2026은 4학년 전체로 표기), area: 앱 영역, required: 필수 여부
 // 이수구분 → 앱 영역: 전공선택=기본전공, 전공필수=기본전공(필수), 심화선택=심화전공, 심화필수=심화전공(필수),
 //                    특화필수=대학특화(필수), 특화선택=대학특화
 // oldName: 비고의 "○○ 동일 교과목" → 체크리스트에 "기초프로그래밍 (구 실용파이썬프로그래밍)"처럼 표시
@@ -159,8 +160,8 @@ window.DATA.curriculum = {
     { code: "INME4205", name: "인간컴퓨터상호작용", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME4206", name: "인공지능보안", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME4202", name: "신기술특론", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
-    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 0, area: "대학특화", credit: 3, required: true },
-    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 0, area: "심화전공", credit: 3, required: true },
+    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 1, area: "대학특화", credit: 3, required: true },
+    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 2, area: "심화전공", credit: 3, required: true },
     { code: "TRAI400023", name: "현장실습", grade: 4, term: 0, area: "대학특화", credit: 2, required: false },
     { code: "TRAI400024", name: "현장실습Ⅰ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },
     { code: "TRAI400025", name: "현장실습Ⅱ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },
@@ -214,8 +215,8 @@ window.DATA.curriculum = {
     { code: "INME4205", name: "인간컴퓨터상호작용", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME4206", name: "인공지능보안", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME4202", name: "신기술특론", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
-    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 0, area: "대학특화", credit: 3, required: true },
-    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 0, area: "심화전공", credit: 3, required: true },
+    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 1, area: "대학특화", credit: 3, required: true },
+    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 2, area: "심화전공", credit: 3, required: true },
     { code: "TRAI400023", name: "현장실습", grade: 4, term: 0, area: "대학특화", credit: 2, required: false },
     { code: "TRAI400024", name: "현장실습Ⅰ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },
     { code: "TRAI400025", name: "현장실습Ⅱ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },
@@ -271,8 +272,8 @@ window.DATA.curriculum = {
     { code: "INME4205", name: "인간컴퓨터상호작용", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME420016", name: "인공지능보안", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
     { code: "INME4202", name: "신기술특론", grade: 4, term: 2, area: "심화전공", credit: 3, required: false },
-    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 0, area: "대학특화", credit: 3, required: true },
-    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 0, area: "심화전공", credit: 3, required: true },
+    { code: "PROJ4106", name: "캡스톤디자인 I", grade: 4, term: 1, area: "대학특화", credit: 3, required: true },
+    { code: "INME4210", name: "캡스톤디자인 II", grade: 4, term: 2, area: "심화전공", credit: 3, required: true },
     { code: "TRAI400023", name: "현장실습", grade: 4, term: 0, area: "대학특화", credit: 2, required: false },
     { code: "TRAI400024", name: "현장실습Ⅰ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },
     { code: "TRAI400025", name: "현장실습Ⅱ", grade: 4, term: 0, area: "대학특화", credit: 3, required: false },

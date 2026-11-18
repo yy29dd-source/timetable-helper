@@ -305,8 +305,9 @@ const Logic = (function () {
       list.push(item);
     };
 
-    // 전공 필수 (특화필수·심화필수 등)
-    (D().curriculum[year] || []).filter(c => c.required && !taken(c.code)).forEach(c => {
+    // 전공 필수 (특화필수·심화필수 등). 2026년에 3학년인 학생은 진로설계3 면제
+    const exempt = new Set(isCareer3Exempt(state) ? req.careerDesign[3] : []);
+    (D().curriculum[year] || []).filter(c => c.required && !taken(c.code) && !exempt.has(c.code)).forEach(c => {
       push({ type: "major", label: c.name, codes: [c.code], credit: c.credit, area: c.area, grade: c.grade, term: c.term });
     });
 
@@ -371,12 +372,15 @@ const Logic = (function () {
     // 학점은 다 채웠어도 아직 안 들은 필수과목이 있으면 그 학점만큼은 들어야 함
     const missingCredits = missingRequired(state, cr).reduce((s, m) => s + (m.credit || 0), 0);
     const need = Math.max(cr.remain, missingCredits);
-    let t = state.conditions && state.conditions.credits;
-    if (!t) {
-      t = Math.ceil(need / remainingTerms(state));
-      t = Math.max(req.targetMin, Math.min(req.targetMax, t));
-    }
+    // 희망 학점을 골랐으면 그 값, '상관없음'이면 19학점 (사용자 확인: 17~19학점에 맞추기)
+    const t = (state.conditions && state.conditions.credits) || req.targetMax;
     return Math.min(t, need);
+  }
+
+  // 2026년에 3학년인 학생 → 진로설계3 면제
+  function isCareer3Exempt(state) {
+    const y = String(R().career3ExemptYear);
+    return termTabs(state).some(t => !t.leave && t.term.startsWith(y + "-") && t.grade === 3);
   }
 
   // ---------------------------------------------------------------
@@ -456,8 +460,10 @@ const Logic = (function () {
     const next = nextTermInfo(state);
     const source = offeringSourceTerm(next.term);
     const cond = Object.assign({ credits: null, freeDay: null, timeOff: null }, state.conditions || {});
-    const target = targetCredits(state, cr);
-    const result = { term: next.term, grade: next.grade, sourceTerm: source, target, min: Math.max(1, target - 2), plans: [], blocked: [], conditions: cond, reason: null };
+    const target = targetCredits(state, cr); // 넘지 않을 상한
+    // min: 이 학점 이상이면 '목표에 맞음' (상관없음 17, 희망 학점 N 이면 N−2). 못 채워도 추천은 함
+    const prefMin = cond.credits ? cond.credits - 2 : req.preferMin;
+    const result = { term: next.term, grade: next.grade, sourceTerm: source, target, min: Math.max(1, Math.min(prefMin, target)), plans: [], blocked: [], conditions: cond, reason: null };
     // 시간표가 0개일 때 이유: "graduated"(졸업 요건 다 채움) | "noSource"(개설 강좌 자료 없음) | "conditions"(조건 때문) | "noCandidates"(추천할 과목 없음)
     if (target <= 0) { result.reason = "graduated"; return result; }
     if (!source) { result.reason = "noSource"; return result; }
@@ -487,19 +493,36 @@ const Logic = (function () {
       if (codes.some(c => keys.has(key(c)))) codes.forEach(c => doneChoiceKeys.add(key(c)));
     });
 
-    // 점수 매기기. null 이면 후보에서 뺀다 (조건과 상관없는 이유)
-    function score(o) {
+    // 우선순위 단계 (작을수록 먼저): 전공을 먼저 채우고 남는 자리에 교양 (사용자 확인)
+    const TIER = { reqMajor: 0, major: 1, reqGeneral: 2, core: 3, general: 4 };
+    const MAJOR_AREAS = ["기본전공", "심화전공", "대학특화"];
+    const seniorKeys = new Set(req.seniorOnly.map(key));
+    const careerGrade = new Map(); // 진로설계 과목 키 → 학년
+    Object.entries(req.careerDesign).forEach(([g, codes]) => codes.forEach(c => careerGrade.set(key(c), Number(g))));
+    const career3Exempt = isCareer3Exempt(state);
+
+    // 후보 분류. null 이면 후보에서 뺀다 (조건과 상관없는 이유)
+    // 돌려주는 값: { tier, w } — w 는 같은 단계 안에서 순서 (클수록 먼저)
+    function classify(o) {
       const k = key(o.code);
       if (keys.has(k)) return null;                       // 이미 들은 과목
       if (excludedCodes.has(o.code)) return null;          // [빼기]로 뺀 과목
       if (!o.slots || !o.slots.length) return null;        // 강의시간 없는 강좌
+      if (seniorKeys.has(k) && next.grade < 4) return null; // 4학년 전용 (캡스톤, 기업가정신과 창업, 진로설계4)
+      if (careerGrade.has(k)) {                            // 진로설계 N 은 N학년일 때만
+        if (careerGrade.get(k) !== next.grade) return null;
+        if (careerGrade.get(k) === 3 && career3Exempt) return null;
+      }
       const isMajor = o.dept === "지능미디어공학과";
-      if (isMajor && o.grade && o.grade > next.grade) return null; // 학년 제한
-      if (requiredKeys.has(k)) return 100;
+      if (isMajor && o.grade && o.grade > next.grade) return null; // 윗학년 전공은 안 됨
+      const gradeBonus = o.grade === next.grade ? 0.5 : 0;  // 같은 영역이면 내 학년 과목 먼저
+      if (requiredKeys.has(k)) {
+        return MAJOR_AREAS.includes(o.area) ? { tier: TIER.reqMajor, w: gradeBonus } : { tier: TIER.reqGeneral, w: 0 };
+      }
       if (isMajor) {
         const a = cr.areas[o.area];
         if (!a || a.remain <= 0) return null;              // 남은 학점이 0인 영역
-        return o.grade === next.grade ? 60 : 50;
+        return { tier: TIER.major, w: a.remain + gradeBonus }; // 더 부족한 영역 먼저
       }
       if (req.generalAreas.includes(o.area)) {
         if (noTwo.test(o.name.trim())) return null;        // 교양 Ⅱ 과목은 추천하지 않음
@@ -511,29 +534,30 @@ const Logic = (function () {
         const subKey = o.area + "|" + o.sub;
         const capped = o.sub && !req.subCapExempt.includes(o.sub);
         if (capped && (subUsed[subKey] || 0) >= req.subCap) return null; // 6학점 채운 소영역
-        if (o.area === "핵심교양") return emptyCore.has(o.sub) ? 40 : null;
-        return genRemain > 0 ? 20 : null;
+        if (o.area === "핵심교양") return emptyCore.has(o.sub) ? { tier: TIER.core, w: 0 } : null;
+        return { tier: TIER.general, w: genRemain > 0 ? 1 : 0 }; // 교양을 다 채웠어도 빈자리 채우기용으로는 씀
       }
       return null; // 일반선택 등은 추천하지 않음
     }
+    const isRequiredTier = t => t === TIER.reqMajor || t === TIER.reqGeneral;
 
     // 후보 모으기 + 조건 때문에 빠진 필수과목 기록
     const blockedMap = new Map();
-    const groups = new Map(); // 과목 키 → { key, score, credit, sections: [] }
+    const groups = new Map(); // 과목 키 → { key, tier, w, credit, sections: [] }
     D().offerings[source].forEach(o => {
-      const sc = score(o);
-      if (sc === null) return;
+      const c = classify(o);
+      if (c === null) return;
       const conflicts = conditionConflicts(o, cond);
       const k = key(o.code);
       if (conflicts.length) {
-        if (sc === 100) {
+        if (isRequiredTier(c.tier)) {
           if (!blockedMap.has(k)) blockedMap.set(k, { name: o.name, code: o.code, conflicts: [], sectionsOk: false });
           blockedMap.get(k).conflicts.push(...conflicts);
         }
         return;
       }
-      if (sc === 100 && blockedMap.has(k)) blockedMap.get(k).sectionsOk = true; // 다른 분반은 가능
-      if (!groups.has(k)) groups.set(k, { key: k, code: o.code, name: o.name, score: sc, credit: o.credit, area: o.area, sub: o.sub, sections: [] });
+      if (isRequiredTier(c.tier) && blockedMap.has(k)) blockedMap.get(k).sectionsOk = true; // 다른 분반은 가능
+      if (!groups.has(k)) groups.set(k, { key: k, code: o.code, name: o.name, tier: c.tier, w: c.w, credit: o.credit, area: o.area, sub: o.sub, sections: [] });
       const g = groups.get(k);
       // 시간이 똑같은 분반은 하나만 남김 (탐색 줄이기)
       const sig = JSON.stringify(o.slots);
@@ -542,7 +566,25 @@ const Logic = (function () {
     // 모든 분반이 조건에 걸린 필수과목만 안내 (판단 규칙 4)
     blockedMap.forEach((b, k) => { if (!b.sectionsOk && !groups.has(k)) result.blocked.push({ name: b.name, code: b.code, reason: reasonText(b.conflicts) }); });
 
-    const list = [...groups.values()].sort((a, b) => b.score - a.score || b.credit - a.credit || a.name.localeCompare(b.name, "ko"));
+    const list = [...groups.values()].sort((a, b) => a.tier - b.tier || b.w - a.w || b.credit - a.credit || a.name.localeCompare(b.name, "ko"));
+
+    // 안 하나의 점수 (앞 항목일수록 중요): 필수 전공 수 → 전공 학점(부족한 영역 가중) → 목표 범위 안 → 총 학점 → 교양 점수
+    const GEN_POINT = { [TIER.reqGeneral]: 30, [TIER.core]: 20, [TIER.general]: 10 };
+    function planKey(sections, total) {
+      let reqMajor = 0, major = 0, gen = 0;
+      sections.forEach(s => {
+        const g = groups.get(key(s.code));
+        if (g.tier === TIER.reqMajor) reqMajor++;
+        if (g.tier === TIER.reqMajor || g.tier === TIER.major) {
+          const remain = cr.areas[g.area] ? cr.areas[g.area].remain : 0;
+          major += g.credit * (100 + remain) + (s.grade === next.grade ? 1 : 0);
+        } else gen += GEN_POINT[g.tier] + g.w;
+      });
+      // 목표에 얼마나 가까운지: 목표−1 ~ 목표 = 2, 목표 범위(min) 안 = 1, 못 채움 = 0
+      const near = total >= target - 1 ? 2 : total >= result.min ? 1 : 0;
+      return [reqMajor, major, near, total, gen];
+    }
+    const cmpKey = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return b[i] - a[i]; return 0; };
 
     // 깊이 우선 탐색 (DFS)
     const found = [];
@@ -552,10 +594,10 @@ const Logic = (function () {
     const choiceOf = new Map(); // 과목 키 → 택1 묶음 이름
     Object.entries(req.choiceGroups).forEach(([name, codes]) => codes.forEach(c => choiceOf.set(key(c), name)));
     const groupUsed = new Set();
-    function dfs(i, total, scoreSum) {
+    function dfs(i, total) {
       if (++steps > SEARCH_LIMIT) return;
-      if (total >= result.min && total <= target) {
-        found.push({ sections: chosen.slice(), credits: total, score: scoreSum });
+      if (total > 0) {  // 몇 학점이든 안으로 인정 (사용자 확인: 무조건 추천)
+        found.push({ sections: chosen.slice(), credits: total, key: planKey(chosen, total) });
       }
       if (i >= list.length || total >= target) return;
       for (let j = i; j < list.length; j++) {
@@ -576,7 +618,7 @@ const Logic = (function () {
           chosen.push(sec);
           if (capped) subPlan[subKey] = (subPlan[subKey] || 0) + g.credit;
           if (grp) groupUsed.add(grp);
-          dfs(j + 1, total + g.credit, scoreSum + g.score);
+          dfs(j + 1, total + g.credit);
           chosen.pop();
           if (capped) subPlan[subKey] -= g.credit;
           if (grp) groupUsed.delete(grp);
@@ -584,16 +626,13 @@ const Logic = (function () {
         }
       }
     }
-    dfs(0, 0, 0);
+    dfs(0, 0);
     result.steps = Math.min(steps, SEARCH_LIMIT);
 
-    // 안 고르기: 점수 합 높은 순, 이미 고른 안과 과목이 2개 이상 다른 안만, 최대 3안
-    // 목표에 가까운 안(목표−1 ~ 목표)을 먼저 고르고, 3안이 안 되면 목표−2 안으로 채운다 (사용자 확인)
-    found.sort((a, b) => b.score - a.score || b.credits - a.credits);
-    const near = found.filter(p => p.credits >= target - 1);
-    const far = found.filter(p => p.credits < target - 1);
+    // 안 고르기: planKey 가 높은 순, 이미 고른 안과 과목이 2개 이상 다른 안만, 최대 3안
+    found.sort((a, b) => cmpKey(a.key, b.key));
     const keyOf = s => key(s.code);
-    for (const p of near.concat(far)) {
+    for (const p of found) {
       const ks = new Set(p.sections.map(keyOf));
       const differs = result.plans.every(q => {
         const qs = new Set(q.sections.map(keyOf));
@@ -607,6 +646,9 @@ const Logic = (function () {
     result.plans.forEach(p => {
       p.offeringIds = p.sections.map(s => s.id);
       p.requiredCodes = p.sections.filter(s => requiredKeys.has(keyOf(s))).map(s => s.code);
+      p.majorCredits = p.sections.filter(s => MAJOR_AREAS.includes(s.area)).reduce((t, s) => t + s.credit, 0);
+      p.underTarget = p.credits < result.min; // 목표 범위를 다 못 채운 안 (그래도 보여 줌)
+      p.score = p.key[1]; // 참고용
     });
 
     // 0개일 때 이유 찾기: 조건을 골랐으면 조건 없이 다시 해 보고, 그래도 0개면 조건 탓이 아님
