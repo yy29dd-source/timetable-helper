@@ -265,10 +265,16 @@ const Logic = (function () {
     const free = raw["일반선택"] + overflowToFree;
     const total = areas["기본전공"].earned + areas["심화전공"].earned + areas["대학특화"].earned + genTotal + free;
 
+    // 남은 학점 = max(130 − 총 학점, 영역별 모자란 학점 합) (사용자 확인)
+    // 총 학점을 채웠어도 교양 33 같은 영역 기준이 모자라면 졸업할 수 없으므로
+    const areaShort = ["기본전공", "심화전공", "대학특화", "교양"].reduce((s, a) => s + areas[a].remain, 0);
+
     return {
       total: round(total),
       required: req.total,
-      remain: round(Math.max(0, req.total - total)),
+      remain: round(Math.max(0, req.total - total, areaShort)),
+      remainTotalOnly: round(Math.max(0, req.total - total)),
+      areaShort: round(areaShort),
       percent: Math.min(100, Math.floor(total / req.total * 100)),
       areas,
       free: round(free),
@@ -362,12 +368,15 @@ const Logic = (function () {
   function targetCredits(state, credits) {
     const req = R();
     const cr = credits || calcCredits(state);
+    // 학점은 다 채웠어도 아직 안 들은 필수과목이 있으면 그 학점만큼은 들어야 함
+    const missingCredits = missingRequired(state, cr).reduce((s, m) => s + (m.credit || 0), 0);
+    const need = Math.max(cr.remain, missingCredits);
     let t = state.conditions && state.conditions.credits;
     if (!t) {
-      t = Math.ceil(cr.remain / remainingTerms(state));
+      t = Math.ceil(need / remainingTerms(state));
       t = Math.max(req.targetMin, Math.min(req.targetMax, t));
     }
-    return Math.min(t, cr.remain);
+    return Math.min(t, need);
   }
 
   // ---------------------------------------------------------------
@@ -448,8 +457,10 @@ const Logic = (function () {
     const source = offeringSourceTerm(next.term);
     const cond = Object.assign({ credits: null, freeDay: null, timeOff: null }, state.conditions || {});
     const target = targetCredits(state, cr);
-    const result = { term: next.term, grade: next.grade, sourceTerm: source, target, min: Math.max(1, target - 2), plans: [], blocked: [], conditions: cond };
-    if (!source || target <= 0) return result;
+    const result = { term: next.term, grade: next.grade, sourceTerm: source, target, min: Math.max(1, target - 2), plans: [], blocked: [], conditions: cond, reason: null };
+    // 시간표가 0개일 때 이유: "graduated"(졸업 요건 다 채움) | "noSource"(개설 강좌 자료 없음) | "conditions"(조건 때문) | "noCandidates"(추천할 과목 없음)
+    if (target <= 0) { result.reason = "graduated"; return result; }
+    if (!source) { result.reason = "noSource"; return result; }
 
     const keys = takenKeySet(state);
     const key = code => courseKey(state.entryYear, code);
@@ -597,6 +608,19 @@ const Logic = (function () {
       p.offeringIds = p.sections.map(s => s.id);
       p.requiredCodes = p.sections.filter(s => requiredKeys.has(keyOf(s))).map(s => s.code);
     });
+
+    // 0개일 때 이유 찾기: 조건을 골랐으면 조건 없이 다시 해 보고, 그래도 0개면 조건 탓이 아님
+    if (!result.plans.length) {
+      result.candidateCount = groups.size;
+      const hasCond = cond.credits || cond.freeDay || cond.timeOff;
+      if (hasCond) {
+        const plain = recommend(Object.assign({}, state, { conditions: { credits: null, freeDay: null, timeOff: null } }));
+        result.reason = plain.plans.length ? "conditions" : plain.reason;
+        if (!plain.plans.length) result.candidateCount = plain.candidateCount;
+      } else {
+        result.reason = "noCandidates";
+      }
+    }
     return result;
   }
 

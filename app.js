@@ -829,21 +829,46 @@ function backToConditions() {
 // 6-1. 조건에 맞는 시간표 없음 (판단 규칙 1)
 // =====================================================================
 
+// 시간표가 0개인 이유별 안내 문구
+function noneMessage(r) {
+  if (r.reason === "graduated") {
+    return { title: "졸업 요건을 모두 채웠어요", text: "더 들어야 할 학점과 필수과목이 없어서 추천할 시간표가 없어요." };
+  }
+  if (r.reason === "noSource") {
+    return { title: "개설 강좌 자료가 없어요", text: `${r.term} 추천에 쓸 같은 학기 개설 강좌 파일이 없어서 시간표를 만들 수 없어요.` };
+  }
+  if (r.reason === "noCandidates") {
+    const why = r.candidateCount
+      ? `추천할 수 있는 과목은 있지만, 시간이 겹치지 않게 ${r.min}~${r.target}학점을 맞출 수 없어요.`
+      : `남은 학점이 있는 영역의 과목이 ${r.sourceTerm} 개설 강좌에 없어요. 일반선택처럼 추천하지 않는 영역만 남았을 수도 있어요.`;
+    return { title: "다음 학기에 추천할 수 있는 과목이 없어요", text: why };
+  }
+  return { title: "조건에 맞는 시간표가 없어요", text: "고른 조건이 너무 많아 만들 수 있는 시간표가 0개예요. 조건을 하나만 바꿔 보세요." };
+}
+
 screens.none = {
   render() {
     const r = ui.result || runRecommend();
+    const m = noneMessage(r);
+    const byCond = r.reason === "conditions";
     return `
       ${topbar("")}
+      ${sourceNote(r.sourceTerm)}
       <section class="notice">
-        <h2>조건에 맞는 시간표가 없어요</h2>
-        <p class="muted">고른 조건이 너무 많아 만들 수 있는 시간표가 0개예요. 조건을 하나만 바꿔 보세요.</p>
+        <h2>${m.title}</h2>
+        <p class="muted">${esc(m.text)}</p>
         <p class="small" style="margin:16px 0 6px"><strong>지금 고른 조건</strong></p>
         ${condChips(r.conditions)}
       </section>
-      ${blockedBox(r.blocked, false)}
-      <div class="bottom"><button class="btn btn-primary" data-act="recond">조건 다시 선택하기</button></div>`;
+      ${byCond ? blockedBox(r.blocked, false) : ""}
+      <div class="bottom">
+        ${byCond
+          ? `<button class="btn btn-primary" data-act="recond">조건 다시 선택하기</button>`
+          : `<button class="btn btn-primary" data-act="status">학점 현황 보기</button>
+             <button class="btn" data-act="recond">조건 다시 선택하기</button>`}
+      </div>`;
   },
-  actions: { recond: backToConditions }
+  actions: { recond: backToConditions, status() { go("status"); } }
 };
 
 // =====================================================================
