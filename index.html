@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>시간표 만들기 도우미</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 화면은 app.js 가 이 안에 그린다 -->
+  <main id="app" class="app" aria-live="polite"></main>
+  <!-- 아래에서 올라오는 시트 (4번 직접 입력) -->
+  <div id="sheet-root"></div>
+  <!-- 짧은 안내 메시지 -->
+  <div id="toast" class="toast" role="status" aria-live="assertive"></div>
+
+  <!-- 데이터 (fetch 대신 전역 변수) -->
+  <script src="data/requirements.js"></script>
+  <script src="data/curriculum.js"></script>
+  <script src="data/general.js"></script>
+  <script src="data/offerings.js"></script>
+  <!-- 계산 -->
+  <script src="logic.js"></script>
+  <!-- 화면 -->
+  <script src="app.js"></script>
+</body>
+</html>
